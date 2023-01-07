@@ -1,0 +1,328 @@
+	/*
+		try (	Connection conn = DriverManager.getConnection(DAOconfig.URL, DAOconfig.USERNAME, DAOconfig.PASSWORD);
+				Statement stm = conn.createStatement();
+				ResultSet rs = stm.executeQuery("SELECT count(*) FROM Circuito"))
+		{
+		}
+		catch (SQLException e)
+		{
+			e.printStackTrace();
+			throw new NullPointerException(e.getMessage());
+		}
+	*/
+package data;
+
+import java.sql.*;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+
+import business.SubCampeonatos.Campeonato;
+import business.SubCampeonatos.Corrida;
+import business.SubCampeonatos.Circuito;
+
+public class CampeonatoDAO implements Set<Campeonato>
+{
+
+	private static CampeonatoDAO singleton = null;
+
+	private CampeonatoDAO()
+	{
+		try (	Connection conn = DriverManager.getConnection(DAOconfig.URL, DAOconfig.USERNAME, DAOconfig.PASSWORD);
+				Statement stm = conn.createStatement())
+		{
+			String sql =	"CREATE TABLE IF NOT EXISTS Campeonato (" +
+								"`nomeCamp` varchar(100) NOT NULL,"+
+								"PRIMARY KEY (`nomeCamp`)"+
+							") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;";
+			stm.executeUpdate(sql);
+			sql =	"CREATE TABLE IF NOT EXISTS Corrida (" +
+						"`idCorrida` int(11) NOT NULL,"+
+						"`idC_fk` int(11) NOT NULL,"+
+						"`nomeCamp_fk` varchar(100) NOT NULL,"+
+						"PRIMARY KEY (`idCorrida`),"+
+						"KEY `idC_fk` (`idC_fk`),"+
+						"KEY `nomeCamp_fk` (`nomeCamp_fk`),"+
+						"CONSTRAINT `Corrida_ibfk_1`"+
+							"FOREIGN KEY (`idC_fk`) REFERENCES `Circuito` (`idC`),"+
+						"CONSTRAINT `Cirruda_ibfk_2`"+
+							"FOREIGN KEY (`nomeCamp_fk`) REFERENCES `Campeonato` (`nomeCamp`)"+
+					") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;";
+			stm.executeUpdate(sql);
+		}
+		catch (SQLException e)
+		{
+			e.printStackTrace();
+			throw new NullPointerException(e.getMessage());
+		}
+	}
+
+	public static CampeonatoDAO getInstance()
+	{
+		if (CampeonatoDAO.singleton == null)
+			CampeonatoDAO.singleton = new CampeonatoDAO();
+
+		return CampeonatoDAO.singleton;
+	}
+
+	@Override
+	public int size()
+	{
+		int size = 0;
+		try (	Connection conn = DriverManager.getConnection(DAOconfig.URL, DAOconfig.USERNAME, DAOconfig.PASSWORD);
+				Statement stm = conn.createStatement();
+				ResultSet rs = stm.executeQuery("SELECT count(*) FROM Campeonato"))
+		{
+			if (rs.next())
+				size = rs.getInt(1);
+		}
+		catch (SQLException e)
+		{
+			e.printStackTrace();
+			throw new NullPointerException(e.getMessage());
+		}
+		return size;
+	}
+
+	@Override 
+	public boolean isEmpty()
+	{
+		return this.size()==0;
+	}
+
+	@Override 
+	public boolean contains(Object o)
+	{
+		if (!(o instanceof Campeonato))
+			return false;
+		Campeonato c = (Campeonato) o;
+		boolean contains;
+		try (	Connection conn = DriverManager.getConnection(DAOconfig.URL, DAOconfig.USERNAME, DAOconfig.PASSWORD);
+				Statement stm = conn.createStatement();
+				ResultSet rs = stm.executeQuery("SELECT nomeCamp FROM Campeonato WHERE nomeCamp = '" + c.getNome() + "'"))
+		{
+			contains = rs.next();
+		}
+		catch (SQLException e)
+		{
+			e.printStackTrace();
+			throw new NullPointerException(e.getMessage());
+		}
+		return contains;
+	}
+
+	@Override
+	public boolean containsAll(Collection<?> c)
+	{
+		boolean r = true;
+		for (Object o : c)
+			r = r && this.contains(o);
+		return r;
+	}
+
+	@Override
+	public boolean add(Campeonato campeonato)
+	{
+		if (this.contains(campeonato))
+			return false;
+		try (	Connection conn = DriverManager.getConnection(DAOconfig.URL, DAOconfig.USERNAME, DAOconfig.PASSWORD);
+				Statement stm = conn.createStatement())
+		{
+			String sql =	"INSERT INTO Campeonato " + 
+								"VALUES ('"+	campeonato.getNome() + "')"+
+								"ON DUPLICATE KEY UPDATE  nomeCamp=VALUES(nomeCamp)";
+			stm.executeUpdate(sql);
+
+			for (Corrida c : campeonato.getCorridas())
+			{
+				sql =	"INSERT INTO Corrida "+
+							"VALUES ("+ c.getID() + ", " +
+										c.getCircuito().getID()+ ", '" +
+										campeonato.getNome() +"')" +
+							"ON DUPLICATE KEY UPDATE	idCorrida=VALUES(idCorrida), " +
+													   "idC_fk=VALUES(idC_fk), " + 
+													   "nomeCamp_fk=VALUES(nomeCamp_fk)";
+				stm.executeUpdate(sql);
+			}
+		}
+		catch (SQLException e)
+		{
+			e.printStackTrace();
+			throw new NullPointerException(e.getMessage());
+		}
+		
+		return true;
+	}
+
+	@Override
+	public boolean remove(Object obj)
+	{
+		if (!this.contains(obj))
+			return false;
+		
+		Campeonato circuito= (Campeonato) obj;
+		try (	Connection conn = DriverManager.getConnection(DAOconfig.URL, DAOconfig.USERNAME, DAOconfig.PASSWORD);
+				Statement stm = conn.createStatement())
+		{
+			String sql = "DELETE FROM Corrida WHERE nomeCamp_fk = '" + circuito.getNome() + "'";
+			stm.executeUpdate(sql);
+			sql = "DELETE FROM Campeonato WHERE nomeCamp = '" + circuito.getNome() + "'";
+			stm.executeUpdate(sql);
+		}
+		catch (SQLException e)
+		{
+			e.printStackTrace();
+			throw new NullPointerException(e.getMessage());
+		}
+		return true;
+	}
+
+	@Override
+	public boolean removeAll(Collection<?> c)
+	{
+		boolean r = false;
+		for (Object camp : c)
+			r = r || this.remove(camp);
+		return r;
+	}
+
+	@Override
+	public boolean addAll(Collection<? extends Campeonato> c)
+	{
+		boolean changed = false;
+		for (Campeonato campeonato : c)
+			changed = changed || this.add(campeonato);
+		return changed;
+	}
+
+	@Override
+	public Campeonato[] toArray()
+	{
+		Object[] array = new Object[this.size()];
+		int i=0;
+		try (	Connection conn = DriverManager.getConnection(DAOconfig.URL, DAOconfig.USERNAME, DAOconfig.PASSWORD);
+				Statement stm = conn.createStatement();
+				ResultSet rs = stm.executeQuery("SELECT * FROM Campeonato"))
+		{
+			while (rs.next())
+			{
+				int idC = rs.getString("nomeCamp");
+				array[i++] = new Campeonato( idC, 
+						                   rs.getInt("nrVoltas"), 
+										   rs.getInt("distancia"),
+										   this.ge;
+			}
+		}
+		catch (SQLException e)
+		{
+			e.printStackTrace();
+			throw new NullPointerException(e.getMessage());
+		}
+
+
+		return array;
+	}
+
+	public List<Corrida> getCorridasCampeonato(String nomeCamp)
+	{
+		List<Corrida> partesCampeonato = new ArrayList<Corrida>();
+
+		try (	Connection conn = DriverManager.getConnection(DAOconfig.URL, DAOconfig.USERNAME, DAOconfig.PASSWORD);
+				Statement stm = conn.createStatement();
+				ResultSet rs = stm.executeQuery("SELECT * FROM Corrida WHERE nomeCamp_fk = '" + nomeCamp + "'"))
+		{
+			while(rs.next())
+				partesCampeonato.add(new Corrida(	rs.getInt("idCorrida"),
+													CircuitoDAO.getInstance().get());
+		}
+		catch (SQLException e)
+		{
+			e.printStackTrace();
+			throw new NullPointerException(e.getMessage());
+		}
+
+		return partesCampeonato;
+	}
+
+	@Override
+	public <T> T[] toArray(T[] a)
+	{
+		if (a == null)
+			throw new NullPointerException();
+	
+		int len = this.size();
+		T[] array;
+		if (a.length < len)
+			array = new Object[len];
+		else
+			array = a;
+
+		int i=0;
+		try (	Connection conn = DriverManager.getConnection(DAOconfig.URL, DAOconfig.USERNAME, DAOconfig.PASSWORD);
+				Statement stm = conn.createStatement();
+				ResultSet rs = stm.executeQuery("SELECT * FROM Campeonato"))
+		{
+			while (rs.next())
+			{
+				int idC = rs.getInt("idC");
+				Campeonato c = new Campeonato( idC, 
+						                   rs.getInt("nrVoltas"), 
+										   rs.getInt("distancia"),
+										   this.getPartesCampeonatoCorrida(idC));
+				array[i++] = c;
+			}
+		}
+		catch (SQLException e)
+		{
+			e.printStackTrace();
+			throw new NullPointerException(e.getMessage());
+		}
+	
+		if (array.length > len)
+			array[len] = null;
+
+		return (T[])array;
+	}
+
+	@Override
+	public Iterator<Campeonato> iterator()
+	{
+		return Arrays.asList(this.toArray()).iterator();
+	}
+
+	@Override
+	public void clear()
+	{
+		try (	Connection conn = DriverManager.getConnection(DAOconfig.URL, DAOconfig.USERNAME, DAOconfig.PASSWORD);
+				Statement stm = conn.createStatement())
+		{
+			stm.executeUpdate("TRUNCATE Corrida");
+			stm.executeUpdate("TRUNCATE ParteCampeonato");
+			stm.executeUpdate("TRUNCATE Campeonato");
+		}
+		catch (SQLException e)
+		{
+			e.printStackTrace();
+			throw new NullPointerException(e.getMessage());
+		}
+
+	}
+
+	@Override
+	public boolean retainAll(Collection<?> c)
+	{
+		boolean r = false;
+		for (Object o : c)
+			if (this.contains(o))
+			{
+				this.remove(o);
+				r = true;
+			}
+		return r;
+	}
+}
